@@ -1,0 +1,15 @@
+{
+  "name": "hydra-bot",
+  "version": "1.0.0",
+  "description": "HYDRA Bot - Sistema de verificación para Hydra Studio",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.16.3",
+    "canvas": "^2.11.2",
+    "dotenv": "^16.4.7"
+  }
+}
