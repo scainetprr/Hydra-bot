@@ -42,7 +42,25 @@ Eso es todo. El archivo `index.js` está dividido en 7 secciones que hacen exact
    node -v
    npm -v
    ```
-   Si ves números como `v20.11.0` y `10.2.4`, vas bien. Si dice "no se reconoce", reinicia la PC y prueba de nuevo.
+   **¿Qué es un número de versión?** Es la "cédula" del programa: `v20.11.0` significa Node versión 20 (la que necesitamos), arreglo 11, parche 0. Solo importa que empiece con `v20`. `npm` es su ayudante y tendrá otro número como `10.x`.
+
+   Así se debe ver ✅ (ejemplo exacto):
+   ```text
+   PS C:\Users\Dylan> node -v
+   v20.18.0
+   PS C:\Users\Dylan> npm -v
+   10.8.2
+   ```
+   En Mac se ve igual pero empieza con `%` en vez de `PS`:
+   ```text
+   dylan@Mac ~ % node -v
+   v20.18.0
+   ```
+   Si ves esto ❌, Node no quedó instalado:
+   ```text
+   node : el término 'node' no se reconoce...
+   ```
+   Solución: reinstala desde nodejs.org (botón LTS), cierra y abre la terminal, reinicia la PC si sigue igual.
 3. **Un servidor de Discord donde seas admin** (puede ser uno de prueba que crees tú: en Discord, botón `+` → Crear servidor → Para mí y mis amigos).
 
 ### 📖 Glosario mini (para no perderse)
@@ -80,6 +98,18 @@ cd Hydra-bot
 - `pwd` = "¿dónde estoy?". Te muestra la ruta.
 - `ls` (o `dir`) = "¿qué hay aquí?". Debe salir `index.js`, `package.json`, etc.
 - `cd NombreCarpeta` = "entra ahí". Para salir un nivel: `cd ..`.
+
+   Ejemplo de cómo se ve ✅:
+   ```text
+   PS C:\Users\Dylan> pwd
+   C:\Users\Dylan
+   PS C:\Users\Dylan> ls
+   Desktop  Documents  Hydra-bot
+   PS C:\Users\Dylan> cd Hydra-bot
+   PS C:\Users\Dylan\Hydra-bot> ls
+   index.js  package.json  .env.example  README.md
+   ```
+   Si después de `ls` ves `index.js` y `package.json`, estás en la carpeta correcta. Si ves otra cosa, usa `cd ..` para salir y `cd NombreCorrecto` para entrar.
 - Para pegar en la terminal: `Ctrl + V` o clic derecho → Pegar. Para copiar la respuesta: selecciónala y `Ctrl + C`.
 
 **Cómo ejecutar cada cosa de esta guía:**
@@ -99,15 +129,75 @@ npm install
 npm start
 # Apagarlo: pulsa Ctrl + C en la terminal
 ```
-**Cómo saber si salió bien:** compara lo que ves con lo que la guía dice que verás (`✅ Bot online...`, `📋 Slash commands registrados`). Si sale rojo, copia ese texto y búscalo en la sección "Si algo falla" de abajo.
+**Cómo saber si salió bien (compara con esto):**
+   ```text
+   PS C:\Users\Dylan\Hydra-bot> npm install
+   added 85 packages in 40s
+   PS C:\Users\Dylan\Hydra-bot> npm start
+   ✅ Bot online como HydraCaptcha#1234
+   📡 Sirviendo 1 servidores
+   📋 Slash commands registrados
+   ```
+   - `npm install` termina con `added X packages`. La primera vez tarda 1-2 min, es normal.
+   - `npm start` debe mostrar las 3 líneas de arriba. Déjalo abierto: mientras esa ventana siga abierta, el bot está encendido. Para apagar: `Ctrl + C`.
+   - Tu `.env` lleno se debe ver así (con TUS valores, nunca compartas el token real):
+   ```env
+   TOKEN=MTIz...tu_token_largo_aqui
+   GUILD_ID=123456789012345678
+   ROLE_VERIFIED=123456789012345679
+   ROLE_UNVERIFIED=123456789012345680
+   CHANNEL_VERIFICATION=123456789012345681
+   ```
+   Si sale rojo, copia ese texto y búscalo en la sección "Si algo falla" de abajo.
 
-## 🛠️ Paso 1 — Crea tu bot en Discord (con fotos mentales)
+## 🛠️ Paso 1 — Crea tu bot en Discord (clic por clic, sin perderte)
 
-1. Entra a https://discord.com/developers/applications → **New Application** → nombre: `Hydra Captcha`.
-2. Menú **Bot** → **Reset Token** → **cópialo** a un bloc de notas. Ese es tu `TOKEN`.
-3. En **Bot**, activa: **Server Members Intent** y **Message Content Intent** (son interruptores).
-4. Menú **OAuth2 → URL Generator** → marca `bot` y `applications.commands` → en permisos marca `Manage Roles`, `Send Messages`, `Use Slash Commands`.
-5. Copia la URL que se genera abajo, pégala en tu navegador, elige tu servidor → **Autorizar**.
+> Imagina que el portal de Discord es una casa con habitaciones a la izquierda. Te digo en qué habitación entrar y qué interruptor tocar. (Verificado con la documentación oficial 2026: nada de esto pide revisión mientras tu bot esté en pocos servidores; la revisión solo aparece al superar ~10.000 usuarios.)
+
+**A) Crea la aplicación (la "partida de nacimiento" del bot)**
+1. Entra a https://discord.com/developers/applications e inicia sesión con tu Discord.
+2. Arriba a la derecha pulsa **New Application** (botón azul).
+3. Escribe el nombre: `Hydra Captcha` → **Create**. Llegas a la habitación **General Information** (ves Application ID, icono, descripción). Aquí aún NO hay token.
+
+**B) Consigue el TOKEN (su contraseña secreta)**
+1. En el menú de la izquierda entra a la habitación **Bot** (icono de robot).
+2. Si es nuevo verás **Add Bot** → pulsa y confirma. Luego verás la sección **Token**.
+3. Pulsa **Reset Token** → te muestra una clave larga una sola vez. **CÓPIALA YA** a un bloc de notas. No podrás verla de nuevo, solo cambiarla.
+   ```text
+   ✅ Se ve así: MTIzNDU2Nzg5MDEyMzQ1Njc4OS5H... (muy larga)
+   ❌ Si la pierdes: vuelve aquí y pulsa Reset Token otra vez.
+   ```
+4. ⚠️ Nunca la pegues en fotos, videos ni GitHub. Va en tu `.env` más adelante.
+
+**C) Enciende sus OJOS (los Intents) — el paso que más falla**
+1. Sigue en **Bot**, baja con la rueda hasta **Privileged Gateway Intents**. Verás 3 interruptores:
+   | Interruptor | Para qué sirve (en niños) | ¿Lo enciendo? |
+   |---|---|---|
+   | Presence Intent | Ver si la gente está conectada/ausente | ❌ Apagado (no lo usamos) |
+   | **Server Members Intent** | Ver QUIÉN ENTRA o sale (sin esto no pone "No Verificado") | ✅ Encendido |
+   | **Message Content Intent** | Leer lo que dicen los mensajes | ✅ Encendido |
+2. Activa los 2 y pulsa **Save Changes** abajo. Si no guardas, es como no haberlo hecho.
+3. Si luego el bot enciende pero no reacciona a entradas, el 99% es que uno de estos quedó apagado (error `DisallowedIntents` en la terminal).
+
+**D) Crea la invitación (habitación OAuth2 → URL Generator)**
+1. En el menú izquierdo entra a **OAuth2** y luego a la sub-pestaña **URL Generator** (está dentro de OAuth2, no es un menú aparte).
+2. En **Scopes** (¿a dónde puede entrar?) marca solo estas 2 casillas:
+   - ✅ `bot` (mete al robot al servidor)
+   - ✅ `applications.commands` (deja usar comandos `/`)
+3. Al marcar `bot` aparece abajo **Bot Permissions** (¿qué puede hacer?). Marca:
+   - ✅ `Manage Roles` (poner/quitar Verificado — sin esto falla)
+   - ✅ `Send Messages` (escribir en el canal)
+   - ✅ `Use Slash Commands` (responder a `/`)
+4. Abajo del todo se genera sola la **Generated URL**, se ve así:
+   ```text
+   https://discord.com/api/oauth2/authorize?client_id=123456789012345678&permissions=268435456&scope=bot+applications.commands
+   ```
+   Cópiala. Si cambias casillas, la URL cambia: cópiala de nuevo.
+
+**E) Mete al bot a tu servidor**
+1. Pega esa URL en tu navegador → elige tu servidor en la lista → **Continue → Autorizar** (marca los permisos que pide, son los del paso D).
+2. Resuelve el captcha de Discord si lo pide. Entra a tu servidor: el bot aparece en la lista de miembros (al inicio gris/offline hasta que lo enciendas en el Paso 4).
+3. **Comprueba:** ve a Ajustes del servidor → Miembros: debes ver `Hydra Captcha` con etiqueta BOT.
 
 ## 🎭 Paso 2 — Crea los 2 rangos
 
