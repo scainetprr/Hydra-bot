@@ -37,24 +37,69 @@ Eso es todo. El archivo `index.js` está dividido en 7 secciones que hacen exact
 ## ✅ Requisitos (5 minutos)
 
 1. **Discord** (cuenta normal).
-2. **Node.js 20** → Descárgalo de https://nodejs.org (botón verde LTS). Para comprobar que quedó bien, abre una terminal y escribe:
+2. **Node.js 20** → Descárgalo de https://nodejs.org (botón verde LTS). Luego comprueba que quedó bien con la terminal (abajo te enseño a abrirla):
    ```bash
    node -v
    npm -v
    ```
-   Si ves números de versión, vas bien.
-3. **Un servidor de Discord donde seas admin** (puede ser uno de prueba que crees tú).
+   Si ves números como `v20.11.0` y `10.2.4`, vas bien. Si dice "no se reconoce", reinicia la PC y prueba de nuevo.
+3. **Un servidor de Discord donde seas admin** (puede ser uno de prueba que crees tú: en Discord, botón `+` → Crear servidor → Para mí y mis amigos).
 
-### Glosario mini (para no perderse)
+### 📖 Glosario mini (para no perderse)
 
-| Palabra | Qué es, en simple |
-|---|---|
-| Token | La contraseña secreta de tu bot. Nunca la compartas ni la subas a GitHub. |
-| Intent | Permiso que le das al bot para "ver" cosas (ej: quién entra). |
-| Rol | Rango: Verificado / No Verificado. |
-| Slash command | Comando con `/` ej: `/setup-verification`. |
-| `.env` | Archivo con tus secretos. El `.env.example` es la plantilla vacía. |
-| Terminal | Ventana negra donde escribes comandos. |
+| Palabra | Qué es, en simple | Ejemplo |
+|---|---|---|
+| Token | La contraseña secreta de tu bot. Nunca la compartas ni la subas a GitHub. | `MTIz...` (largo, solo tú lo ves) |
+| Intent | Interruptor que le da "ojos" al bot para ver quién entra o qué se escribe. | Server Members Intent = ver quién entra |
+| Rol | Rango con color y permisos. | Verificado (verde) / No Verificado (rojo) |
+| Slash command | Comando que empieza con `/` y Discord te autocompleta. | `/setup-verification` |
+| `.env` | Archivo con tus secretos. El `.env.example` es la plantilla vacía para copiar. | `TOKEN=...` |
+| Node.js | Programa que deja correr JavaScript fuera del navegador (tu bot vive ahí). | `node -v` muestra su versión |
+| npm | El instalador que viene con Node. Descarga las piezas del bot. | `npm install` = descargar todo |
+| Terminal | Ventana donde escribes órdenes en texto. Da miedo al inicio, pero solo copias y pegas. | Ver abajo cómo abrirla |
+
+### 💻 La terminal desde 0 (si nunca la tocaste)
+
+La terminal es como el WhatsApp de tu PC: escribes una orden, pulsas Enter y te responde. No rompes nada por escribir los comandos de esta guía.
+
+**Cómo abrirla:**
+- **Windows:** pulsa `Windows + R`, escribe `powershell` y Enter. O botón inicio → escribe `PowerShell` → ábrelo. Verás algo azul como `PS C:\Users\TuNombre>`.
+- **Mac:** pulsa `Cmd + Espacio`, escribe `Terminal` y Enter. Verás como `tunombre@Mac ~ %`.
+- **Linux / Chromebook:** `Ctrl + Alt + T`.
+
+**Cómo saber dónde estás y moverte (solo 3 órdenes):**
+```bash
+# 1. Ver en qué carpeta estás
+pwd
+# 2. Ver qué archivos hay aquí
+ls
+# En Windows PowerShell también vale: dir
+# 3. Entrar a la carpeta de tu bot (ejemplo)
+cd Hydra-bot
+```
+- `pwd` = "¿dónde estoy?". Te muestra la ruta.
+- `ls` (o `dir`) = "¿qué hay aquí?". Debe salir `index.js`, `package.json`, etc.
+- `cd NombreCarpeta` = "entra ahí". Para salir un nivel: `cd ..`.
+- Para pegar en la terminal: `Ctrl + V` o clic derecho → Pegar. Para copiar la respuesta: selecciónala y `Ctrl + C`.
+
+**Cómo ejecutar cada cosa de esta guía:**
+```bash
+# Comprobar Node (solo lee la versión, no cambia nada)
+node -v
+npm -v
+# Entrar a tu proyecto (ajusta la ruta a la tuya)
+cd Hydra-bot
+# Copiar la plantilla de secretos
+cp .env.example .env
+# En Windows PowerShell es:
+Copy-Item .env.example .env
+# Descargar las piezas del bot (solo la primera vez, tarda 1-2 min)
+npm install
+# Encender el bot (verás "Bot online...")
+npm start
+# Apagarlo: pulsa Ctrl + C en la terminal
+```
+**Cómo saber si salió bien:** compara lo que ves con lo que la guía dice que verás (`✅ Bot online...`, `📋 Slash commands registrados`). Si sale rojo, copia ese texto y búscalo en la sección "Si algo falla" de abajo.
 
 ## 🛠️ Paso 1 — Crea tu bot en Discord (con fotos mentales)
 
