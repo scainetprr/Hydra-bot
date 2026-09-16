@@ -288,6 +288,12 @@ En tu Discord escribe:
 
 Sale un mensaje con botón verde **Verificarme**. Pruébalo con una cuenta secundaria o pide a un amigo que entre.
 
+## ⬇️ Descarga el bot 100% completo (.zip)
+
+¿Quieres comparar tu resultado con el modelo terminado? Descarga **`BOT-LISTO.zip`** (aquí mismo en el repo): incluye `BOT-LISTO.js` funcionando, `package.json`, `.env.example` y `LEEME-COMPARA.txt` con la lista de chequeo.
+
+Cómo comparar: abre tu `mi-primer-bot.js` o tu `index.js` al lado de `BOT-LISTO.js`. Si el tuyo enciende, registra `/hola`, genera el captcha y cambia rangos, quedaste igual que el modelo. Para personalizar el modelo sin programar, edita solo el bloque `PERSONALIZA` de arriba (textos, colores, imagen miniatura, fuente, tamaño y longitud) y reinicia con `node BOT-LISTO.js`.
+
 ## 📖 El código por secciones (como en `index.js`)
 
 Abre `index.js`. Arriba de cada bloque hay un comentario `SECCIÓN X` que dice qué hace y por qué:
@@ -299,6 +305,79 @@ Abre `index.js`. Arriba de cada bloque hay un comentario `SECCIÓN X` que dice q
 - **SECCIÓN 5 — Encendido:** se conecta, registra `/setup-verification` y `/captcha-test`.
 - **SECCIÓN 6 — Cuando entra alguien:** pone "No Verificado" y manda DM de bienvenida.
 - **SECCIÓN 7 — Botón + ventanita + premio:** genera imagen, la muestra solo a ti (efímero), abre la ventanita (modal), compara lo que escribiste, y si aciertas te cambia los rangos.
+
+## 🔨 Taller: construye TU bot a mano (de archivo vacío a funcionando)
+
+> Aquí no solo lees: ESCRIBES. Crea un archivo `mi-primer-bot.js` al lado de `index.js` y avanza por niveles. Cada nivel se prueba. Si un nivel no sale, no pases al siguiente.
+
+**Nivel 0 — Las piezas (en la terminal, dentro de la carpeta):**
+```bash
+npm init -y
+npm install discord.js dotenv
+```
+✅ Debe terminar con `added X packages` y aparecer la carpeta `node_modules`. (El `canvas` lo instalamos en el Nivel 3, porque en algunos PCs pide herramientas extra.)
+
+**Nivel 1 — Que encienda y salude (lo mínimo que respira):**
+Crea `mi-primer-bot.js` y escribe ESTO a mano (escríbelo, no solo copies: tus dedos aprenden):
+```js
+require("dotenv").config();
+const { Client, GatewayIntentBits, Events } = require("discord.js");
+
+const client = new Client({ intents: [GatewayIntentBits.Guilds] });
+
+client.once(Events.ClientReady, (c) => {
+  console.log(`✅ Estoy vivo como ${c.user.tag}`);
+});
+
+client.login(process.env.TOKEN);
+```
+Pruébalo: `node mi-primer-bot.js`. ✅ Debes ver `✅ Estoy vivo como HydraCaptcha#1234`. Apagar: `Ctrl + C`. ❌ `invalid token` = tu `.env` está mal (vuelve al Paso 3).
+
+**Nivel 2 — Tu primer slash `/hola` (sin captcha todavía):**
+Debajo del `ClientReady`, agrega:
+```js
+const { REST, Routes, SlashCommandBuilder } = require("discord.js");
+const rest = new REST({ version: "10" }).setToken(process.env.TOKEN);
+async function registrar() {
+  await rest.put(Routes.applicationCommands(client.user.id), {
+    body: [new SlashCommandBuilder().setName("hola").setDescription("Te saluda").toJSON()],
+  });
+  console.log("📋 Comando /hola registrado");
+}
+// Llama a registrar() dentro del ClientReady.
+client.on(Events.InteractionCreate, async (i) => {
+  if (i.isChatInputCommand() && i.commandName === "hola") {
+    await i.reply("¡Hola! 👋 Soy tu bot en pruebas.");
+  }
+});
+```
+Reinicia, espera 1 min y escribe `/hola` en tu Discord. ✅ Responde. Así aprendiste: registrar → escuchar → responder.
+
+**Nivel 3 — Dibuja tu primer captcha (instala el lápiz):**
+```bash
+npm install canvas
+```
+❌ Si falla en Linux: `sudo apt install build-essential libcairo2-dev libjpeg-dev libpango1.0-dev libgif-dev librsvg2-dev` y reintenta. Agrega:
+```js
+const { createCanvas } = require("canvas");
+function textoFacil() {
+  const letras = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // sin O/0/I/1 para no confundir
+  let t = "";
+  for (let i = 0; i < 4; i++) t += letras[Math.floor(Math.random() * letras.length)];
+  return t; // ej: "K7P2"
+}
+```
+Agrega al final `console.log(textoFacil(), textoFacil());` y corre. ✅ Debes ver 2 códigos de 4 letras.
+
+**Nivel 4 — El premio (rangos): solo 2 líneas:**
+```js
+await miembro.roles.add(rolVerificado);      // dar
+await miembro.roles.remove(rolNoVerificado); // quitar
+```
+Eso es TODO lo que hace el bot real al acertar. Lo demás es la ventanita (modal), que ya viste en `index.js`.
+
+**Nivel 5 — Compara con el ejemplo hecho:**
+Abre `BOT-LISTO.js` (en este repo, descargable). Es el bot completo con una zona arriba `🎨 PERSONALIZA AQUÍ` donde cambias textos, colores, fuente, tamaño y longitud sin tocar la lógica.
 
 ### Mini-ejercicio para aprender
 
@@ -331,6 +410,6 @@ El bot en tu PC se apaga si cierres la PC. Súbelo a un panel gratis tipo Pterod
 
 - Nunca subas `.env` a GitHub (ya está en `.gitignore`).
 - Si tu token se filtra, ve a Developers → Bot → Reset Token y pon el nuevo en `.env` y en tu hosting.
-- Este repo es privado: solo tú lo ves, perfecto para practicar.
+- Este repo es público para compartir con compañeros: el código se ve, pero TUS secretos están a salvo porque el archivo `.env` nunca se sube (está en `.gitignore`). Cada compañero usa su propio token con su `.env`.
 
 ¡Hecho! Si llegaste hasta aquí ya sabes más que ayer: qué es un token, un intent, un rol, un slash y cómo un captcha protege tu Discord. 🚀
