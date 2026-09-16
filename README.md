@@ -208,31 +208,61 @@ En tu servidor: **Ajustes → Roles → Crear rol**.
 
 ⚠️ **Muy importante:** en la lista de roles, arrastra el rol de tu bot **por encima** de esos dos. Si no, Discord no le deja poner rangos.
 
-## 🔑 Paso 3 — Consigue 5 IDs
+## 🔑 Paso 3 — Tus 5 claves (el .env explicado como receta)
 
-1. En Discord: **Ajustes → Avanzado → activa Modo Desarrollador**.
-2. Clic derecho → **Copiar ID** en: tu servidor, rol Verificado, rol No Verificado y canal #verificacion.
-3. Copia `.env.example` a `.env`:
-   ```bash
-   cp .env.example .env
+**Primero entiende esto (30 segundos):**
+- `.env.example` = la FOTOCOPIA EN BLANCO. Dice qué huecos llenar, pero no tiene tus datos.
+- `.env` = TU HOJA YA LLENA con tus secretos. El bot solo lee esta.
+- ¿Por qué copiar y no escribir a mano? Para no olvidar ninguna línea. Copias la plantilla y solo rellenas.
+
+**3A) Consigue tus 5 valores (guárdalos en un bloc de notas temporal):**
+1. En Discord: **Ajustes (rueda) → Avanzado → activa Modo Desarrollador** (interruptor azul).
+2. Ahora haz clic derecho → **Copiar ID** en cada cosa. Un ID se ve así (18 números):
+   ```text
+   1307246359895740448
    ```
-   En Windows (PowerShell):
-   ```powershell
-   Copy-Item .env.example .env
-   ```
-4. Abre `.env` y pega:
-   ```env
-   # Contraseña secreta del bot (del Paso 1)
-   TOKEN=pega_aqui_tu_token
-   # ID de tu servidor
-   GUILD_ID=pega_aqui_id_servidor
-   # ID del rol que se da al verificarse
-   ROLE_VERIFIED=pega_aqui_id_verificado
-   # ID del rol que se da al entrar
-   ROLE_UNVERIFIED=pega_aqui_id_no_verificado
-   # ID del canal donde estará el botón
-   CHANNEL_VERIFICATION=pega_aqui_id_canal
-   ```
+   Cópialos de: ① tu servidor (clic derecho en su icono) ② rol Verificado ③ rol No Verificado (Ajustes del servidor → Roles → ⋯ → Copiar ID) ④ canal #verificacion. Más tu TOKEN del Paso 1. Ya tienes 5.
+
+**3B) Ponte DENTRO de la carpeta del bot (si no, el comando falla):**
+```bash
+cd Hydra-bot
+ls
+```
+Debe salir ✅:
+```text
+index.js  package.json  .env.example  README.md
+```
+❌ Si sale otra cosa o error `No existe la ruta`, estás en la carpeta equivocada. Usa `pwd` para ver dónde estás y `cd ..` para salir un nivel.
+
+**3C) Copia la plantilla (elige SOLO uno según tu terminal):**
+```bash
+# Mac / Linux:
+cp .env.example .env
+```
+```powershell
+# Windows PowerShell:
+Copy-Item .env.example .env
+```
+✅ Si sale bien NO muestra nada, solo vuelve a salir `PS ...>`. Compruébalo:
+```bash
+ls
+```
+Ahora debe aparecer `.env` en la lista. (En el explorador de Windows los archivos que empiezan con punto a veces se ocultan: Vista → Mostrar →Elementos ocultos.)
+❌ Si ves `No se encuentra... / cannot find`: es que no estás en la carpeta (vuelve a 3B).
+🖱️ **Alternativa sin terminal:** abre la carpeta en el explorador → copia `.env.example` → pégalo ahí mismo → renómbralo a `.env`. Mismo resultado.
+
+**3D) Abre tu `.env` y rellena (ejemplo de cómo debe QUEDAR):**
+- Windows: clic derecho en `.env` → Abrir con Bloc de notas. O en terminal: `notepad .env`.
+- Mac: `open -e .env`. O usa VS Code si lo tienes: `code .env`.
+```env
+TOKEN=MTIzNDU2Nzg5MDEyMzQ1Njc4OS5Habc_tu_token_real_aqui
+GUILD_ID=1307246359895740448
+ROLE_VERIFIED=1307246359895740449
+ROLE_UNVERIFIED=1307246359895740450
+CHANNEL_VERIFICATION=1307246359895740451
+```
+Reglas: sin espacios alrededor del `=`, sin comillas, un dato por línea, guarda con `Ctrl + S`.
+✅ **Chequeo final:** las 5 líneas tienen valores (nada dice `pega_aqui`), el archivo se llama exactamente `.env` y está junto a `index.js`. Si el bot luego dice "invalid token", el TOKEN está mal copiado: repite el Paso 1B.
 
 ## 💻 Paso 4 — Instala y enciende
 
