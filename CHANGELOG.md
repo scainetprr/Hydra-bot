@@ -2,6 +2,16 @@
 
 Todas las novedades relevantes del bot. Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
+## [10/10/2026] — 01:35
+
+### Corregido (Música)
+- **Dos `/play` seguidos ya no dejan la cola muda sin aviso**: bandera `busy` que impide lanzar dos reproducciones a la vez (antes pisaban el player entre sí), y el error de cada canción se avisa **siempre** en el canal, aunque queden más canciones en la cola.
+
+### Corregido (Panel)
+- **El ⓘ de cada campo ya no muestra el ejemplo equivocado**: el ejemplo genérico de bienvenida aparecía en campos como «Webhook de changelogs». Ahora cada campo con ayuda propia muestra solo su descripción; los ejemplos genéricos solo aparecen en campos sin ayuda específica.
+
+---
+
 ## [10/10/2026] — 00:15
 
 ### Corregido (Música)
