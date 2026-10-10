@@ -368,7 +368,7 @@ function getQueue(guildId) {
   if (!musicQueues.has(guildId)) {
     const gc = getGuildConfig(guildId);
     const vol = Math.min(150, Math.max(1, Number(gc.musicVolume) || 100));
-    musicQueues.set(guildId, { songs: [], connection: null, player: null, volume: vol, looping: false, textChannelId: null, ffmpeg: null });
+    musicQueues.set(guildId, { songs: [], connection: null, player: null, volume: vol, looping: false, textChannelId: null, ffmpeg: null, busy: false });
   }
   return musicQueues.get(guildId);
 }
@@ -11374,7 +11374,10 @@ async function spotifyResolve(query) {
 // Resuelve enlaces de YouTube usando play-dl primero (mejor bot detection)
 async function resolveYouTube(url) {
   let meta = null;
-  if (!youtubeBlockedNow()) {
+  const sinProxy = !String(MUSIC_PROXY || "").trim();
+  // Sin proxy: YouTube no sirve para streaming desde el host; no se pierde el
+  // tiempo en play-dl/yt-dlp. oEmbed da título, autor e miniatura al instante.
+  if (!sinProxy && !youtubeBlockedNow()) {
     try {
       const v = await play.video_info(url).catch(() => null);
       if (v && v.video_details) {
@@ -11382,14 +11385,14 @@ async function resolveYouTube(url) {
       }
     } catch (e) { markYoutubeBlocked(e.message); }
   }
-  if (!meta && ytdlpDisponible() && !youtubeBlockedNow()) {
+  if (!meta && !sinProxy && ytdlpDisponible() && !youtubeBlockedNow()) {
     try { meta = JSON.parse((await ytdlpYT(base => ["--dump-json", ...base, url], 40000)).trim().split("\n").filter(Boolean)[0]); }
     catch (e) { markYoutubeBlocked(e.message); }
   }
   // Invidious: metadatos sin tocar YouTube desde la IP del host
   // (se omite si YouTube está bloqueado: las instancias públicas también fallan
   //  y se pierden ~28 s en timeouts; oEmbed sirve para el título).
-  if (!meta && !youtubeBlockedNow()) {
+  if (!meta && !sinProxy && !youtubeBlockedNow()) {
     const vid = extractYouTubeVideoId(url);
     if (vid) meta = await invidiousVideoMeta(vid);
   }
@@ -11427,14 +11430,17 @@ async function resolveGenericYTDLP(url, sourceName) {
   throw new Error(`No pude obtener info de ${sourceName}`);
 }
 async function searchTrack(query) {
-  // Si YouTube está bloqueado (IP del host), no se pierde el tiempo: se va
-  // directo a SoundCloud, que no bloquea por IP.
-  if (youtubeBlockedNow()) {
+  // Sin proxy configurado: YouTube no sirve para streaming desde el host.
+  // Se va directo a SoundCloud, que no bloquea por IP.
+  const sinProxy = !String(MUSIC_PROXY || "").trim();
+  if (sinProxy || youtubeBlockedNow()) {
     if (MUSIC_SC_FALLBACK) {
       const sc = await soundcloudSearch(query, { direct: true });
-      if (sc) { console.log(`🎵 YouTube bloqueado → SoundCloud: ${sc.title}`); return sc; }
+      if (sc) { console.log(`🎵 Búsqueda directa en SoundCloud: ${sc.title}`); return sc; }
     }
-    throw new Error("YouTube está bloqueado desde este host y no hay ninguna coincidencia clara en SoundCloud");
+    throw new Error(sinProxy
+      ? "Sin proxy, la música sale de SoundCloud y no hay ninguna coincidencia clara. Prueba con el título exacto o configura un proxy en Panel → Música."
+      : "YouTube está bloqueado desde este host y no hay ninguna coincidencia clara en SoundCloud");
   }
   if (ytdlpDisponible()) {
     try {
@@ -11862,6 +11868,24 @@ async function resolveAudioSource(song) {
   const shortErr = (e) => String((e && e.message) || e).replace(/\s+/g, " ").slice(0, 70);
 
   if (isYt) {
+    // Sin proxy configurado: YouTube bloquea casi siempre la IP de un host de
+    // boting. En vez de gastar ~60-90 s en yt-dlp+play-dl+Invidious muertos,
+    // se va directo a SoundCloud (la única fuente que sí responde sin proxy).
+    // Si el dueño configura un proxy en Panel → Música, se prueba YouTube primero.
+    const sinProxy = !String(MUSIC_PROXY || "").trim();
+    if (sinProxy) {
+      note("YouTube: omitido (sin proxy; se usa SoundCloud)");
+      if (MUSIC_SC_FALLBACK) {
+        const sc0 = await soundcloudFallbackForSong(song, originalUrl);
+        if (sc0) return sc0;
+        note("SoundCloud: sin resultado utilizable");
+      } else {
+        note("SoundCloud: respaldo desactivado en el panel");
+      }
+      const base0 = LAST_MUSIC_ERROR || "no pude obtener el audio";
+      const detalle0 = diag.length ? "\n" + diag.map(d => "• " + d).join("\n") : "";
+      throw new Error(base0 + detalle0 + musicBlockedHint(base0));
+    }
     // 1. yt-dlp directo con varios clientes de reproductor (y proxy si el dueño lo configuró)
     if (!ytdlpDisponible()) note("yt-dlp: no está instalado en el host");
     else if (youtubeBlockedNow()) note("yt-dlp: omitido (YouTube bloqueó la IP hace poco)");
@@ -11976,6 +12000,7 @@ function musicErrorToChannel(guildId, text) {
 function playGuildMusic(guildId) {
   const queue = musicQueues.get(guildId);
   if (!queue || !queue.songs.length) return;
+  if (queue.busy) return; // ya hay una reproducción en curso (evita carrera entre /play simultáneos)
   applyMusicSettings(guildId);
   if (!ffmpegDisponible()) {
     console.error("🎵 ffmpeg no está disponible en el host: la música no puede reproducirse.");
@@ -11988,6 +12013,7 @@ function playGuildMusic(guildId) {
   }
 
   const song = queue.songs[0];
+  queue.busy = true;
 
   (async () => {
     try {
@@ -12006,12 +12032,13 @@ function playGuildMusic(guildId) {
         "-reconnect_streamed", "1",
         "-reconnect_delay_max", "3",
       ];
-      // Cabeceras HTTP para que el CDN acepte a ffmpeg (UA de navegador + Referer de YouTube).
+      // Cabeceras HTTP para que el CDN acepte a ffmpeg (UA de navegador + Referer del origen).
       if (inputIsUrl) {
         ffArgs.push("-user_agent", MUSIC_UA);
         try {
           const h = new URL(src.source);
           if (/googlevideo|youtube|ytimg/i.test(h.hostname)) ffArgs.push("-headers", "Referer: https://www.youtube.com/\r\n");
+          else if (/sndcdn|soundcloud/i.test(h.hostname)) ffArgs.push("-headers", "Referer: https://soundcloud.com/\r\n");
           const pxy = String(MUSIC_PROXY || "").trim();
           if (pxy && /^https?:\/\//i.test(pxy)) ffArgs.push("-http_proxy", pxy);
         } catch {}
@@ -12129,6 +12156,7 @@ function playGuildMusic(guildId) {
         if (!queue.songs.length) {
           try { client.restoreBotmode(); } catch {}
         }
+        queue.busy = false;
         playGuildMusic(guildId);
       });
 
@@ -12140,6 +12168,7 @@ function playGuildMusic(guildId) {
         if (!queue.songs.length) {
           try { client.restoreBotmode(); } catch {}
         }
+        queue.busy = false;
         playGuildMusic(guildId);
       });
 
@@ -12187,10 +12216,14 @@ function playGuildMusic(guildId) {
       console.error("Play error:", err.message);
       LAST_MUSIC_ERROR = err.message;
       const falla = queue.songs.shift();
+      // Avisa SIEMPRE del fallo (antes solo se avisaba si la cola quedaba vacía:
+      // con 2 canciones encoladas el error de la primera quedaba invisible).
+      musicErrorToChannel(guildId, `❌ No pude reproducir **${falla ? falla.title : "la canción"}**: ${err.message}`
+        + (ytdlpDisponible() ? "" : "\n⚠️ Falta el binario `yt-dlp` en el host: súbelo a la raíz del bot."));
       if (!queue.songs.length) {
-        musicErrorToChannel(guildId, `❌ No pude reproducir **${falla ? falla.title : "la canción"}**: ${err.message}`
-          + (ytdlpDisponible() ? "" : "\n⚠️ Falta el binario `yt-dlp` en el host: súbelo a la raíz del bot."));
+        try { client.restoreBotmode(); } catch {}
       }
+      queue.busy = false;
       playGuildMusic(guildId);
     }
   })();
