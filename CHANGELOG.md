@@ -2,6 +2,13 @@
 
 Todas las novedades relevantes del bot. Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
+## [10/10/2026] — 02:25
+
+### Corregido (Panel · Premium)
+- **Texto roto en «Modo dueño activo»**: «Desbloquear todo Premium para el dueño» salía partido en líneas diminutas apiladas porque el `<label>` completo llevaba la clase `pmsw` (dimensiones 42×23 px del switch). La clase ahora va solo en el interruptor.
+
+---
+
 ## [10/10/2026] — 01:35
 
 ### Corregido (Música)
