@@ -4,6 +4,22 @@ Registro fechado de cada cambio aplicado al bot y al panel. Lo más reciente arr
 
 ---
 
+## 10/10/2026 · 01:35
+
+**Música — dos `/play` seguidos dejaban la cola muda sin ningún aviso**
+- **Bandera `busy` en la cola**: si ya hay una reproducción en curso, un segundo `/play` solo encola la canción y no lanza otra instancia de `playGuildMusic`. Antes dos `/play` casi simultáneos lanzaban dos resoluciones y dos ffmpeg a la vez sobre la misma canción; la segunda pisaba al player de la primera y la cola se quedaba muda sin error.
+- **El fallo de una canción ya no se traga**: el `catch` de `playGuildMusic` avisa **siempre** en el canal del fallo (antes solo avisaba si la cola quedaba vacía tras el `shift`, así con 2 canciones encoladas el error de la primera era invisible y el usuario solo veía «Añadido a la cola» ×2 sin sonido ni explicación).
+- **`busy` se libera** al terminar (Idle), en error del player y en el catch: la siguiente canción de la cola arranca sola.
+
+**Panel — el ⓘ de cada campo mostraba el ejemplo equivocado**
+- **`infoField` ya no pisa la ayuda propia con la del bloque**: antes la descripción y el **ejemplo** del grupo genérico (p. ej. el de bienvenida «✨ ¡Bienvenido/a, {user}! ✨») se mostraban en **todos** los campos de texto, incluido «Webhook de changelogs», que salía con un ejemplo de título de embed. Ahora: si el campo tiene ayuda propia, se usa esa y **no** se muestra el ejemplo genérico.
+- **Ayuda propia añadida** a los campos más visibles que solo recibían el genérico: `changelogWebhook`, `musicProxy`, `musicSoundcloudFallback`, `musicVolume`, `streamingUrl`, `spotifyUserId`, `stripeKey`, `paypalEmail`, `cryptoAddress`, emojis de sugerencias/sorteos/starboard, `activityText`, `invoicePrefix` y fechas/código de promociones.
+
+**Comprobado**
+- `node --check index.js` y `node --check guild.js`: OK.
+
+---
+
 ## 10/10/2026 · 00:15
 
 **Música — arreglo directo del "no pude obtener el audio" en el host**
