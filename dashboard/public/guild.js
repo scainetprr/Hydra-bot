@@ -2875,7 +2875,7 @@ function premPaint() {
       </div>
       ${d.ownerAll ? `<div class="subpanel" style="margin-top:12px;border-left:3px solid var(--ok)"><b>👑 ${t("prem_owner_all_t")}</b>
         <p class="desc">${t("prem_owner_all_d")}</p>
-        ${isOwner ? `<label class="pmsw" style="display:inline-flex;gap:8px;align-items:center"><input type="checkbox" checked onchange="premAct({action:'ownerAll',on:this.checked})"><span></span> <small>${t("prem_owner_sw")}</small></label>` : ""}</div>` : ""}
+        ${isOwner ? `<label style="display:inline-flex;gap:8px;align-items:center;cursor:pointer"><span class="pmsw"><input type="checkbox" checked onchange="premAct({action:'ownerAll',on:this.checked})"><span></span></span> <small>${t("prem_owner_sw")}</small></label>` : ""}</div>` : ""}
       ${(d.keys || []).length ? `<div class="subpanel" style="margin-top:12px"><b>${t("prem_active_keys")}</b>
         ${(d.keys || []).map(k => `<div class="rowline"><code>${escHtml(k.key)}</code><span>${PREM_LABEL[k.plan] || k.plan}</span><span>${k.expiresAt ? `<t:${Math.floor(k.expiresAt / 1000)}:R>` : t("prem_forever")}</span>${isOwner ? `<button class="btn danger small" onclick="premAct({action:'revoke',key:'${k.key}'})">${t("prem_revoke")}</button>` : ""}</div>`).join("")}</div>` : ""}
     </div>
