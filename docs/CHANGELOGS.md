@@ -4,7 +4,16 @@ Registro fechado de cada cambio aplicado al bot y al panel. Lo más reciente arr
 
 ---
 
-## 10/10/2026 · 01:35
+## 10/10/2026 · 02:25
+
+**Panel — texto roto en la tarjeta «Modo dueño activo» (Premium)**
+- El texto «Desbloquear todo Premium para el dueño» salía partido en líneas diminutas apiladas. Causa: el `<label>` completo (interruptor + texto) llevaba `class="pmsw"`, y esa clase CSS fija `width:42px; height:23px` (las dimensiones del switch, no del label). El texto entero se metía en una caja de 42×23 px.
+- **Fix**: la clase `pmsw` ahora va solo en el `<span>` del interruptor; el texto queda fuera en un `<label>` con flex normal. Selectores CSS del switch intactos.
+
+**Despliegue**
+- `guild.js` hash `8fd55bf0f4892d40` → host OK. GitHub push OK.
+
+---
 
 **Música — dos `/play` seguidos dejaban la cola muda sin ningún aviso**
 - **Bandera `busy` en la cola**: si ya hay una reproducción en curso, un segundo `/play` solo encola la canción y no lanza otra instancia de `playGuildMusic`. Antes dos `/play` casi simultáneos lanzaban dos resoluciones y dos ffmpeg a la vez sobre la misma canción; la segunda pisaba al player de la primera y la cola se quedaba muda sin error.
