@@ -4,6 +4,27 @@ Registro fechado de cada cambio aplicado al bot y al panel. Lo más reciente arr
 
 ---
 
+## 10/10/2026 · 08:25
+
+**Música — YouTube volvía con error y no reproducía**
+
+- **Clientes de yt-dlp obsoletos**: el bot pedía `android_vr` (devuelve 403 desde yt-dlp 2026.08) y `tv_embedded` (ya no existe en yt-dlp). Ahora usa **`visionos`** (responde sin cookies ni PO token) con respaldo `web_embedded` y `android`, y añade `--js-runtimes node` para que los desafíos JavaScript los resuelva el Node del propio host.
+- **Sin proxy el bot ni intentaba YouTube**: se saltaba YouTube y respondía con el respaldo SoundCloud; si no había coincidencia clara, lanzaba el error «configura un proxy». Ahora YouTube se intenta **siempre** y SoundCloud queda solo como respaldo.
+- **«YouTube bloqueado» precipitado**: se marcaba durante 5 min aunque fallara un solo cliente. Ahora solo se marca cuando fallan **todos** los clientes.
+- **Cola muda eterna**: si la resolución de audio se quedaba colgada, la reproducción no sonaba ni avisaba nunca. Añadido un tope de **120 s** con el aviso correspondiente en el canal.
+
+**Añadido (panel)**
+
+- **Botón «🎵 Probar música»** en la tarjeta *Salud del bot* (página Servidores, solo dueño): resuelve un vídeo de prueba con yt-dlp, sondea el audio y muestra la versión de yt-dlp, el host del audio y el resultado, sin tocar Discord. La última prueba queda guardada y se ve en la tarjeta.
+
+**Comprobado**
+
+- Con el binario exacto del host (yt-dlp 2026.08.19) desde una IP de datacenter: `visionos` devuelve audio directo (itag 251, audio/webm) y la sonda responde **HTTP 206**; `web_embedded` funciona gracias a `--js-runtimes node`; la búsqueda `ytsearch1` también resuelve.
+- 4 archivos desplegados por SFTP con **SHA-256 verificado**: `index.js`, `dashboard/server.js`, `dashboard/public/servers.html`, `dashboard/public/i18n.js`.
+- **Pendiente del dueño**: pulsar **Restart** en el panel del hosting y luego «🎵 Probar música» en la página Servidores.
+
+---
+
 ## 10/10/2026 · 02:25
 
 **Panel — texto roto en la tarjeta «Modo dueño activo» (Premium)**
