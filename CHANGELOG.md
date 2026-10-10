@@ -2,6 +2,19 @@
 
 Todas las novedades relevantes del bot. Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
+## [10/10/2026] — 08:25
+
+### Corregido (Música · YouTube no reproducía)
+- **Clientes de yt-dlp modernos**: fuera `android_vr` (403 en yt-dlp 2026.08) y `tv_embedded` (eliminado); entran `visionos` + `web_embedded` + `android`, con `--js-runtimes node` para los desafíos JS.
+- **YouTube se intenta siempre**: sin proxy ya no se salta directo a SoundCloud; SoundCloud queda como respaldo.
+- **«YouTube bloqueado» solo si fallan todos los clientes** (antes un fallo puntual bloqueaba YouTube 5 min).
+- **Tope de 120 s** en la resolución de audio: la cola ya no puede quedarse muda sin aviso.
+
+### Añadido (Panel)
+- **«🎵 Probar música»** en la tarjeta *Salud del bot*: prueba real de audio de YouTube con yt-dlp + sonda, versión del binario y resultado. La última prueba queda guardada.
+
+---
+
 ## [10/10/2026] — 02:25
 
 ### Corregido (Panel · Premium)
