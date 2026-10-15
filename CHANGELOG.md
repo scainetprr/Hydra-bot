@@ -2,6 +2,13 @@
 
 Todas las novedades relevantes del bot. Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
+## [10/10/2026] — 03:05
+
+### Corregido (Tickets)
+- **No dejaba volver a seleccionar la misma categoría**: el menú solo se restablecía si el ticket se creaba; al cancelar el formulario la opción quedaba marcada y el cliente no disparaba de nuevo. El panel ahora se restablece al placeholder en cada selección (también justo tras abrir el modal y antes de crear).
+
+---
+
 ## [10/10/2026] — 02:45
 
 ### Corregido (Tickets)
