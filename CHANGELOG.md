@@ -2,16 +2,10 @@
 
 Todas las novedades relevantes del bot. Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
-## [10/10/2026] — 08:25
+## [10/10/2026] — 02:45
 
-### Corregido (Música · YouTube no reproducía)
-- **Clientes de yt-dlp modernos**: fuera `android_vr` (403 en yt-dlp 2026.08) y `tv_embedded` (eliminado); entran `visionos` + `web_embedded` + `android`, con `--js-runtimes node` para los desafíos JS.
-- **YouTube se intenta siempre**: sin proxy ya no se salta directo a SoundCloud; SoundCloud queda como respaldo.
-- **«YouTube bloqueado» solo si fallan todos los clientes** (antes un fallo puntual bloqueaba YouTube 5 min).
-- **Tope de 120 s** en la resolución de audio: la cola ya no puede quedarse muda sin aviso.
-
-### Añadido (Panel)
-- **«🎵 Probar música»** en la tarjeta *Salud del bot*: prueba real de audio de YouTube con yt-dlp + sonda, versión del binario y resultado. La última prueba queda guardada.
+### Corregido (Tickets)
+- **No se podían abrir tickets**: el bot hacía `deferReply` antes de mostrar el modal de preguntas y Discord lo rechaza (el modal debe ser la primera respuesta), dejando «Hydra está pensando...» para siempre. El modal ahora se muestra antes de diferir, el submit del modal difiere antes de crear, y `crearTicket` se movió al scope correcto (antes no era accesible desde el submit del modal).
 
 ---
 
