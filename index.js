@@ -3154,6 +3154,23 @@ function buildTicketPanel(guild, member) {
   return sendOptions;
 }
 
+// Fila del menú de tickets en estado inicial (placeholder). Se usa para
+// restablecer el panel tras cada selección: así no queda ninguna opción
+// marcada y el usuario siempre puede volver a elegir la misma categoría.
+function ticketMenuResetRow(guildId) {
+  const cats = ticketCats(guildId);
+  const menu = new StringSelectMenuBuilder()
+    .setCustomId("ticket_select")
+    .setPlaceholder("Click aquí para desplegar el menú!")
+    .addOptions(cats.map(cat => ({
+      label: cat.label,
+      value: cat.value || cat.id,
+      emoji: cat.emoji,
+      description: cat.description || cat.desc,
+    })));
+  return new ActionRowBuilder().addComponents(menu);
+}
+
 // Envía la transcripción (.txt) al canal configurable de transcripts
 async function sendTicketTranscript(guild, channel, ticketData, closerTag) {
   try {
@@ -8288,19 +8305,7 @@ async function manejarInteraccion(interaction) {
   
         // Reset select menu placeholder
         try {
-          const gc3 = getGuildConfig(interaction.guild.id);
-    const resetCats = ticketCats(interaction.guild.id);
-          const resetMenu = new StringSelectMenuBuilder()
-            .setCustomId("ticket_select")
-            .setPlaceholder("Click aquí para desplegar el menú!")
-            .addOptions(resetCats.map(cat => ({
-              label: cat.label,
-              value: cat.value || cat.id,
-              emoji: cat.emoji,
-              description: cat.description || cat.desc,
-            })));
-          const resetRow = new ActionRowBuilder().addComponents(resetMenu);
-          await interaction.message.edit({ components: [resetRow] });
+          await interaction.message.edit({ components: [ticketMenuResetRow(interaction.guild.id)] });
         } catch {}
   
         return interaction.editReply({ content: `✅ Ticket creado: <#${ticketChannel.id}>` });
@@ -8310,7 +8315,6 @@ async function manejarInteraccion(interaction) {
     // ===== TICKET SELECT (menú de categorías) =====
     if (interaction.isStringSelectMenu() && interaction.customId === "ticket_select") {
       const categoryId = interaction.values[0];
-      const gc2 = getGuildConfig(interaction.guild.id);
       const allCats = ticketCats(interaction.guild.id);
       const catData = allCats.find(c => (c.id || c.value) === categoryId);
       if (!catData) return interaction.reply({ content: "❌ Categoría no encontrada.", flags: MessageFlags.Ephemeral });
@@ -8327,12 +8331,18 @@ async function manejarInteraccion(interaction) {
             new TextInputBuilder().setCustomId("q" + idx).setLabel(String(q).slice(0, 45)).setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(500)
           ));
         });
-        return interaction.showModal(modal).catch(() => {
-          interaction.reply({ content: "❌ No se pudo abrir el formulario del ticket.", flags: MessageFlags.Ephemeral }).catch(() => {});
-        });
+        const shown = await interaction.showModal(modal).then(() => true).catch(() => false);
+        if (!shown) return interaction.reply({ content: "❌ No se pudo abrir el formulario del ticket.", flags: MessageFlags.Ephemeral }).catch(() => {});
+        // El modal consume la interacción, pero el menú del panel puede
+        // restablecerse por REST para que quede libre aunque el usuario
+        // cancele el formulario (si no, la opción queda marcada y el cliente
+        // no deja volver a elegir la misma categoría).
+        try { await interaction.message.edit({ components: [ticketMenuResetRow(interaction.guild.id)] }); } catch {}
+        return;
       }
 
       await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+      try { await interaction.message.edit({ components: [ticketMenuResetRow(interaction.guild.id)] }); } catch {}
       return crearTicket(interaction, catData, {});
     }
 
