@@ -4,6 +4,18 @@ Registro fechado de cada cambio aplicado al bot y al panel. Lo más reciente arr
 
 ---
 
+## 10/10/2026 · 03:05
+
+**Tickets — no dejaba volver a seleccionar la misma categoría**
+- El panel solo se restablecía (placeholder) **si el ticket llegaba a crearse**. Si se abría el formulario y se cancelaba (o fallaba), la opción elegida quedaba marcada en el menú y el cliente no volvía a disparar la interacción al clicar la misma.
+- **Fix**: el menú del panel se restablece **inmediatamente** en cada selección, vía REST al mensaje (función nueva `ticketMenuResetRow`):
+  - Con preguntas: tras `showModal` (el modal consume la interacción, pero el edit de mensaje es una operación independiente) → aunque cancele el formulario, el menú queda libre.
+  - Sin preguntas: tras `deferReply`, antes de crear el ticket.
+  - `crearTicket` reutiliza la misma helper (antes había el reset duplicado en línea).
+- `node --check index.js`: OK.
+
+---
+
 ## 10/10/2026 · 02:45
 
 **Tickets — no se podían abrir («Hydra está pensando...» para siempre)**
