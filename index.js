@@ -3171,8 +3171,26 @@ function ticketMenuResetRow(guildId) {
   return new ActionRowBuilder().addComponents(menu);
 }
 
+// Botones del mensaje del ticket (estilo: Close Ticket + estado de reclamado).
+// claimerLabel null → botón "🙋 Reclamar"; con nombre → " Claimed by …" deshabilitado.
+function ticketPanelRows(claimerLabel) {
+  const claim = claimerLabel
+    ? new ButtonBuilder().setCustomId("ticket_claim").setLabel(` Claimed by ${claimerLabel}`.slice(0, 80)).setStyle(ButtonStyle.Secondary).setDisabled(true)
+    : new ButtonBuilder().setCustomId("ticket_claim").setLabel("🙋 Reclamar").setStyle(ButtonStyle.Success);
+  const row1 = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId("ticket_close").setLabel("🔒 Close Ticket").setStyle(ButtonStyle.Danger),
+    claim
+  );
+  const row2 = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId("ticket_delete").setLabel("🗑️ Borrar").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId("ticket_add_staff").setLabel("👤 Agregar Staff").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId("ticket_add_user").setLabel("➕ Agregar Usuario").setStyle(ButtonStyle.Secondary)
+  );
+  return [row1, row2];
+}
+
 // Envía la transcripción (.txt) al canal configurable de transcripts
-async function sendTicketTranscript(guild, channel, ticketData, closerTag) {
+async function sendTicketTranscript(guild, channel, ticketData, closerMention) {
   try {
     const gc = getGuildConfig(guild.id);
     const trChId = gc.ticketTranscriptChannelId || "";
@@ -3186,11 +3204,24 @@ async function sendTicketTranscript(guild, channel, ticketData, closerTag) {
       lines.push(`[${new Date(m.createdTimestamp).toLocaleString("es-ES")}] ${m.author.tag}: ${(m.content || "(embed/sistema)")}${atts}`);
     });
     const buf = Buffer.from(lines.join("\n") || "(sin mensajes)", "utf8");
+    const creator = ticketData && ticketData.userId ? `<@${ticketData.userId}>` : "—";
+    const claimer = ticketData && ticketData.claimedBy ? `<@${ticketData.claimedBy}>` : "—";
     const emb = new EmbedBuilder()
-      .setTitle(`📄 Transcript — #${channel.name}`)
-      .setDescription(`**Ticket de:** <@${ticketData?.userId || "?"}>\n**Categoría:** ${ticketData?.category || "?"}\n**Gestionado por:** ${closerTag}\n**Mensajes:** ${lines.length}`)
-      .setColor(0x5865F2).setTimestamp();
-    await trCh.send({ embeds: [emb], files: [{ attachment: buf, name: `transcript-${channel.name}.txt` }] }).catch(() => {});
+      .setTitle("Cierre del Ticket")
+      .addFields(
+        { name: "Cierre", value: `El ticket ha sido cerrado por ${closerMention}.\nMotivo: ${(ticketData && ticketData.closeReason) || "Solved"}` },
+        { name: "Información", value: `Creador: ${creator}\nMensajes: ${lines.length}\nPrioridad: ${(ticketData && ticketData.priority) || "Low"}\nClaimed By: ${claimer}` },
+        { name: "Canal del Ticket", value: channel.name }
+      )
+      .setColor(0x5865F2)
+      .setFooter({ text: `${guild.name} | Ticket System` });
+    const files = [{ attachment: buf, name: `${channel.name}-transcript.txt` }];
+    const bp = resolveTicketBanner(guild.id, gc.ticketImage, "ticket");
+    if (bp) {
+      files.push(new AttachmentBuilder(bp, { name: "ticket-banner.png" }));
+      emb.setImage("attachment://ticket-banner.png");
+    }
+    await trCh.send({ embeds: [emb], files }).catch(() => {});
   } catch {}
 }
 
@@ -3217,7 +3248,7 @@ h1{font-size:18px;margin:0 0 4px}.meta{color:#949ba4;font-size:12px;margin-botto
 }
 // Cierre de ticket compartido (botón 🔒 Cerrar y comando /cerrar).
 // Devuelve { embed, components } para responder.
-async function closeTicketCore(guild, channel, ticketData, closerUser) {
+async function closeTicketCore(guild, channel, ticketData, closerUser, reason) {
   const transcript = [];
   let messages;
   try { messages = await channel.messages.fetch({ limit: 100 }); } catch { messages = new Map(); }
@@ -3235,13 +3266,14 @@ async function closeTicketCore(guild, channel, ticketData, closerUser) {
     } catch {}
   } catch {}
 
-  await sendTicketTranscript(guild, channel, ticketData, `<@${closerUser.id}>`);
-
   ticketData.closed = true;
   ticketData.closedBy = closerUser.id;
   ticketData.closedAt = Date.now();
+  ticketData.closeReason = String(reason || "Solved").slice(0, 100);
   openTickets.set(channel.id, ticketData);
   saveTickets();
+
+  await sendTicketTranscript(guild, channel, ticketData, `<@${closerUser.id}>`);
 
   try {
     const stillOpen = [...openTickets.values()].some(t => t.userId === ticketData.userId && !t.closed);
@@ -3348,11 +3380,12 @@ async function buildTestMessage(guildId, module, member) {
     const withCat = (s) => String(s || "").replace(/\{categoria\}/gi, cat.label);
     const tExtra = { ticketName: "ticket-ejemplo", ticketNumber: (gc.ticketCounter || 0) + 1, staffMention: gc.staffRoleId ? `<@&${gc.staffRoleId}>` : "Staff" };
     const embed = new EmbedBuilder()
-      .setTitle(String(gc.ticketTitle || `${cat.emoji} Ticket Abierto — ${cat.label}`).substring(0, 256))
-      .setDescription(renderMsg(withCat(gc.ticketDesc || `Hola <@${member.id}>, bienvenido a tu ticket de **${cat.label}**.\n\n${cat.desc}\n\nUn miembro del staff te atenderá pronto.`), member, tExtra))
+      .setTitle(String(renderMsg(gc.ticketTitle || "Ticket Created", member, tExtra)).substring(0, 256))
+      .setDescription(renderMsg(withCat(gc.ticketDesc || `Hey <@${member.id}>, a staff member will be with you shortly.`), member, tExtra))
       .setColor(parseColor(gc.ticketColor || "#00FF00"))
-      .setFooter({ text: renderMsg(withCat(gc.ticketFooter || `${guild.name} • Soporte`), member, tExtra) })
+      .setFooter({ text: renderMsg(withCat(gc.ticketFooter || `${cat.label} • Staff`), member, tExtra) })
       .setTimestamp();
+    embed.setThumbnail(guild.iconURL({ size: 256 }) || member.user.displayAvatarURL({ size: 256 }));
     applyEmbedExtras(embed, gc, "ticket", member);
     const out = { embeds: [embed] };
     const testContent = renderMsg(withCat(gc.ticketContent || ""), member, tExtra);
@@ -8210,6 +8243,7 @@ async function manejarInteraccion(interaction) {
             name: `${catData.prefix || "ticket"}-${interaction.user.username}`,
             type: 0,
             parent: gc2.ticketCategoryId || undefined,
+            topic: `Category: ${catData.label} | User: @${interaction.user.username} | Priority: ${catData.priority || "Low"}`,
             permissionOverwrites: [
               { id: interaction.guild.roles.everyone.id, deny: ["ViewChannel"] },
             ],
@@ -8255,35 +8289,38 @@ async function manejarInteraccion(interaction) {
           category: catData.label,
           categoryId: catData.id,
           createdAt: Date.now(),
+          respuestas: respuestas || {},
+          priority: catData.priority || "Low",
         });
         saveTickets();
-  
-        const ticketBtns = new ActionRowBuilder().addComponents(
-          new ButtonBuilder().setCustomId("ticket_claim").setLabel("🙋 Reclamar").setStyle(ButtonStyle.Success),
-          new ButtonBuilder().setCustomId("ticket_close").setLabel("🔒 Cerrar").setStyle(ButtonStyle.Danger),
-          new ButtonBuilder().setCustomId("ticket_delete").setLabel("🗑️ Borrar").setStyle(ButtonStyle.Secondary),
-        );
-  
-        const ticketManageBtns = new ActionRowBuilder().addComponents(
-          new ButtonBuilder().setCustomId("ticket_add_staff").setLabel("👤 Agregar Staff").setStyle(ButtonStyle.Secondary),
-          new ButtonBuilder().setCustomId("ticket_add_user").setLabel("➕ Agregar Usuario").setStyle(ButtonStyle.Secondary),
-        );
   
         const gcT = getGuildConfig(interaction.guild.id);
         const withCat = (s) => String(s || "").replace(/\{categoria\}/gi, catData.label);
         gcT.ticketCounter = (gcT.ticketCounter || 0) + 1;
         saveGuilds();
+        const staffRoleT = gcT.staffRoleId ? interaction.guild.roles.cache.get(gcT.staffRoleId) : null;
+        const staffLabel = staffRoleT ? staffRoleT.name : "Staff";
         const tExtra = {
           ticketName: ticketChannel.name,
           ticketNumber: gcT.ticketCounter,
           staffMention: gcT.staffRoleId ? `<@&${gcT.staffRoleId}>` : "Staff",
         };
         const ticketEmbed = new EmbedBuilder()
-          .setTitle(String(gcT.ticketTitle || `${catData.emoji} Ticket Abierto — ${catData.label}`).substring(0, 256))
-          .setDescription(renderMsg(withCat(gcT.ticketDesc || `Hola <@${interaction.user.id}>, bienvenido a tu ticket de **${catData.label}**.\n\n${catData.desc || catData.description || ""}\n\n${gcT.staffRoleId ? `<@&${gcT.staffRoleId}>` : "Staff"} Un miembro del staff te atenderá pronto.\n**Por favor describe tu problema con detalle.**`), interaction.member, tExtra))
+          .setTitle(String(renderMsg(withCat(gcT.ticketTitle || "Ticket Created"), interaction.member, tExtra)).substring(0, 256))
+          .setDescription(renderMsg(withCat(gcT.ticketDesc || `Hey <@${interaction.user.id}>, a staff member will be with you shortly.`), interaction.member, tExtra))
           .setColor(parseColor(gcT.ticketColor || "#00FF00"))
-          .setFooter({ text: renderMsg(withCat(gcT.ticketFooter || `${interaction.guild.name} • Soporte`), interaction.member, tExtra) })
+          .setFooter({ text: renderMsg(withCat(gcT.ticketFooter || `${catData.label} • ${staffLabel}`), interaction.member, tExtra).substring(0, 256) })
           .setTimestamp();
+        // Respuestas del formulario: una campo por pregunta con la respuesta
+        // dentro de un bloque de código (estilo "Ticket Created").
+        const preguntasAbiertas = (catData.questions || []).filter(Boolean).slice(0, 5);
+        for (const q of preguntasAbiertas) {
+          const ans = respuestas && respuestas[q];
+          if (!ans) continue;
+          const limpio = String(ans).replace(/```/g, "'''").substring(0, 950);
+          ticketEmbed.addFields({ name: String(q).substring(0, 256), value: `\`\`\`\n${limpio}\n\`\`\`` });
+        }
+        ticketEmbed.setThumbnail(interaction.guild.iconURL({ size: 256 }) || interaction.user.displayAvatarURL({ size: 256 }));
         applyEmbedExtras(ticketEmbed, gcT, "ticket", interaction.member);
   
         const ticketFiles = [];
@@ -8298,7 +8335,7 @@ async function manejarInteraccion(interaction) {
           const openRaw = renderMsg(withCat(gcT.ticketContent || ""), interaction.member, tExtra);
           const sMention = gcT.staffRoleId ? `<@&${gcT.staffRoleId}>` : "";
           const openContent = openRaw || `<@${interaction.user.id}> ${sMention}`;
-          await ticketChannel.send({ content: openContent, embeds: [ticketEmbed], components: [ticketBtns, ticketManageBtns], files: ticketFiles });
+          await ticketChannel.send({ content: openContent, embeds: [ticketEmbed], components: ticketPanelRows(null), files: ticketFiles });
         } catch (err) {
           console.error("Error sending ticket embed:", err.message);
         }
@@ -8373,24 +8410,48 @@ async function manejarInteraccion(interaction) {
       openTickets.set(interaction.channel.id, ticketData);
       saveTickets();
 
+      // Botón " Claimed by …" deshabilitado en el mensaje del ticket
+      try {
+        await interaction.message.edit({ components: ticketPanelRows(interaction.user.username) });
+      } catch {}
+
       await interaction.editReply({ content: `✅ Ticket reclamado por <@${interaction.user.id}>. Solo tú y el usuario original pueden escribir. Usa \`/ticket agregar @usuario\` para dar permiso a otro staff.` });
       return;
     }
 
-    // ===== TICKET CLOSE =====
+    // ===== TICKET CLOSE (abre el modal de motivo) =====
     if (interaction.isButton() && interaction.customId === "ticket_close") {
+      const ticketData = openTickets.get(interaction.channel.id);
+      if (!ticketData) return interaction.reply({ content: "❌ Ticket no encontrado.", flags: MessageFlags.Ephemeral });
+      if (ticketData.closed) return interaction.reply({ content: "⚠️ Este ticket ya está cerrado.", flags: MessageFlags.Ephemeral });
+      if (!isDirectivos(interaction.member) && ticketData.userId !== interaction.user.id) {
+        return interaction.reply({ content: "❌ Solo un **Directivo** o el usuario que creó el ticket puede cerrarlo.", flags: MessageFlags.Ephemeral });
+      }
+      const modalClose = new ModalBuilder()
+        .setCustomId("ticket_close_q")
+        .setTitle("Cerrar Ticket")
+        .addComponents(new ActionRowBuilder().addComponents(
+          new TextInputBuilder().setCustomId("motivo").setLabel("Motivo de cierre").setStyle(TextInputStyle.Short)
+            .setRequired(false).setPlaceholder("Solved").setMaxLength(100)
+        ));
+      return interaction.showModal(modalClose).catch(() => {
+        interaction.reply({ content: "❌ No se pudo abrir el formulario de cierre.", flags: MessageFlags.Ephemeral }).catch(() => {});
+      });
+    }
+
+    // ===== TICKET CLOSE (envío del modal de motivo) =====
+    if (interaction.isModalSubmit() && interaction.customId === "ticket_close_q") {
       await interaction.deferReply();
       const ticketData = openTickets.get(interaction.channel.id);
       if (!ticketData) return interaction.editReply({ content: "❌ Ticket no encontrado." });
       if (ticketData.closed) return interaction.editReply({ content: "⚠️ Este ticket ya está cerrado." });
-
-      // Only directivos or the ticket opener can close
       if (!isDirectivos(interaction.member) && ticketData.userId !== interaction.user.id) {
         return interaction.editReply({ content: "❌ Solo un **Directivo** o el usuario que creó el ticket puede cerrarlo." });
       }
-
+      let motivo = "";
+      try { motivo = (interaction.fields.getTextInputValue("motivo") || "").trim().slice(0, 100); } catch {}
       try {
-        const done = await closeTicketCore(interaction.guild, interaction.channel, ticketData, interaction.user);
+        const done = await closeTicketCore(interaction.guild, interaction.channel, ticketData, interaction.user, motivo);
         await interaction.editReply({ embeds: [done.embed], components: done.components });
       } catch {
         await interaction.editReply({ content: "🔒 Ticket cerrado. Transcript guardado." });
@@ -8433,14 +8494,10 @@ async function manejarInteraccion(interaction) {
         ticketData.closed = false;
         delete ticketData.closedBy;
         delete ticketData.closedAt;
+        delete ticketData.closeReason;
         openTickets.set(interaction.channel.id, ticketData);
         saveTickets();
-        const ticketBtns = new ActionRowBuilder().addComponents(
-          new ButtonBuilder().setCustomId("ticket_claim").setLabel("🙋 Reclamar").setStyle(ButtonStyle.Success),
-          new ButtonBuilder().setCustomId("ticket_close").setLabel("🔒 Cerrar").setStyle(ButtonStyle.Danger),
-          new ButtonBuilder().setCustomId("ticket_delete").setLabel("🗑️ Borrar").setStyle(ButtonStyle.Secondary),
-        );
-        await interaction.editReply({ content: `🔓 Ticket reabierto por <@${interaction.user.id}>.`, components: [ticketBtns] });
+        await interaction.editReply({ content: `🔓 Ticket reabierto por <@${interaction.user.id}>.`, components: ticketPanelRows(null) });
       } catch {
         await interaction.editReply({ content: "❌ No se pudo reabrir." });
       }
@@ -8617,13 +8674,16 @@ async function manejarInteraccion(interaction) {
         }
         if (ticketData.closed) return interaction.reply({ content: "⚠️ Este ticket ya está cerrado.", flags: MessageFlags.Ephemeral });
 
-        try {
-          const done = await closeTicketCore(interaction.guild, interaction.channel, ticketData, interaction.user);
-          await interaction.reply({ embeds: [done.embed], components: done.components });
-        } catch {
-          await interaction.reply({ content: "🔒 Ticket cerrado. Transcript guardado." });
-        }
-        return;
+        const modalCloseCmd = new ModalBuilder()
+          .setCustomId("ticket_close_q")
+          .setTitle("Cerrar Ticket")
+          .addComponents(new ActionRowBuilder().addComponents(
+            new TextInputBuilder().setCustomId("motivo").setLabel("Motivo de cierre").setStyle(TextInputStyle.Short)
+              .setRequired(false).setPlaceholder("Solved").setMaxLength(100)
+          ));
+        return interaction.showModal(modalCloseCmd).catch(() => {
+          interaction.reply({ content: "❌ No se pudo abrir el formulario de cierre.", flags: MessageFlags.Ephemeral }).catch(() => {});
+        });
       }
 
       // /reclamar
