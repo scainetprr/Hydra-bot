@@ -2060,43 +2060,7 @@ function botSalud() {
     healthy: PROCESS_ERRORS < 25,
     commands: (CMD_BUILDERS || []).length,
     persisted: health || null,
-    musicDiag: (() => { try { return db.miscGet("musicDiag", null); } catch { return null; } })(),
   };
-}
-
-// Prueba real de música (botón del panel, solo dueño): comprueba binarios,
-// resuelve un vídeo de prueba con yt-dlp y sondea el audio antes de ffmpeg.
-async function probarMusica() {
-  applyMusicSettings(process.env.GUILD_ID || "");
-  const out = {
-    at: Date.now(),
-    ok: false,
-    ytdlp: ytdlpDisponible(),
-    version: "",
-    ffmpeg: !!ffmpegDisponible(),
-    proxy: !!String(MUSIC_PROXY || "").trim(),
-    scFallback: !!MUSIC_SC_FALLBACK,
-    blocked: youtubeBlockedNow(),
-    youtube: null,
-  };
-  try {
-    if (out.ytdlp) { try { out.version = (await ytdlpRun(["--version"], 15000)).trim(); } catch {} }
-    if (out.ytdlp) {
-      const testUrl = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
-      const raw = await ytdlpYT(base => ["--get-url", "-f", "bestaudio/best", ...base, testUrl], 30000);
-      const url = raw.trim().split("\n").filter(Boolean)[0] || "";
-      const probe = url ? await probeAudioUrl(url) : { ok: false, why: "sin URL" };
-      let host = "";
-      try { host = new URL(url).hostname; } catch {}
-      out.youtube = { ok: !!url && probe.ok !== false, host, why: probe.why || "" };
-      out.ok = out.youtube.ok;
-    }
-  } catch (e) {
-    out.youtube = { ok: false, why: String((e && e.message) || e).slice(0, 200) };
-  }
-  try { db.miscSet("musicDiag", out); } catch {}
-  console.log("🎵 Diagnóstico de música:", JSON.stringify(out).slice(0, 400));
-  return out;
 }
 
 // Caché de alias por servidor: alias -> comando base
@@ -8217,19 +8181,12 @@ async function manejarInteraccion(interaction) {
     }
 
     // ===== TICKET SELECT =====
-    if (interaction.isStringSelectMenu() && interaction.customId === "ticket_select") {
-      const categoryId = interaction.values[0];
+    // Crea el canal del ticket, los permisos y el embed. Se llama desde el
+    // menu de categorias (sin preguntas) o desde el formulario de preguntas.
+    // (Definida FUERA del bloque del select: también la usa el submit del modal,
+    //  que es una invocación distinta de manejarInteraccion.)
+    async function crearTicket(interaction, catData, respuestas) {
       const gc2 = getGuildConfig(interaction.guild.id);
-      const embCats = ((gc2.embeds || {}).tickets || {}).categories || [];
-      const allCats = ticketCats(interaction.guild.id);
-      const catData = allCats.find(c => (c.id || c.value) === categoryId);
-      if (!catData) return interaction.reply({ content: "❌ Categoría no encontrada.", flags: MessageFlags.Ephemeral });
-
-      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-
-// Crea el canal del ticket, los permisos y el embed. Se llama desde el
-// menu de categorias (sin preguntas) o desde el formulario de preguntas.
-async function crearTicket(interaction, catData, respuestas) {
         let ticketChannel;
         try {
           ticketChannel = await interaction.guild.channels.create({
@@ -8347,9 +8304,19 @@ async function crearTicket(interaction, catData, respuestas) {
         } catch {}
   
         return interaction.editReply({ content: `✅ Ticket creado: <#${ticketChannel.id}>` });
-  
+
 }
-      // Formulario de preguntas de la categoria (si tiene)
+
+    // ===== TICKET SELECT (menú de categorías) =====
+    if (interaction.isStringSelectMenu() && interaction.customId === "ticket_select") {
+      const categoryId = interaction.values[0];
+      const gc2 = getGuildConfig(interaction.guild.id);
+      const allCats = ticketCats(interaction.guild.id);
+      const catData = allCats.find(c => (c.id || c.value) === categoryId);
+      if (!catData) return interaction.reply({ content: "❌ Categoría no encontrada.", flags: MessageFlags.Ephemeral });
+
+      // Si la categoría tiene preguntas, el modal debe ser la PRIMERA respuesta
+      // a la interacción (Discord no permite showModal tras deferReply).
       const preguntas = (catData.questions || []).filter(Boolean).slice(0, 5);
       if (preguntas.length) {
         const modal = new ModalBuilder()
@@ -8360,8 +8327,12 @@ async function crearTicket(interaction, catData, respuestas) {
             new TextInputBuilder().setCustomId("q" + idx).setLabel(String(q).slice(0, 45)).setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(500)
           ));
         });
-        return interaction.showModal(modal).catch(() => {});
+        return interaction.showModal(modal).catch(() => {
+          interaction.reply({ content: "❌ No se pudo abrir el formulario del ticket.", flags: MessageFlags.Ephemeral }).catch(() => {});
+        });
       }
+
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
       return crearTicket(interaction, catData, {});
     }
 
@@ -8551,6 +8522,8 @@ async function crearTicket(interaction, catData, respuestas) {
       (catData.questions || []).forEach((q, idx) => {
         try { respuestas[q] = interaction.fields.getTextInputValue("q" + idx).slice(0, 500); } catch {}
       });
+      // crearTicket usa editReply: hay que diferir la interacción del modal primero.
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
       return crearTicket(interaction, catData, respuestas);
     }
 
@@ -11410,10 +11383,27 @@ async function spotifyResolve(query) {
 // Resuelve enlaces de YouTube usando play-dl primero (mejor bot detection)
 async function resolveYouTube(url) {
   let meta = null;
-  // Metadatos con yt-dlp (clientes nuevos): título, duración y miniatura reales.
-  if (ytdlpDisponible() && !youtubeBlockedNow()) {
-    try { meta = JSON.parse((await ytdlpYT(base => ["--dump-json", ...base, url], 25000)).trim().split("\n").filter(Boolean)[0]); }
+  const sinProxy = !String(MUSIC_PROXY || "").trim();
+  // Sin proxy: YouTube no sirve para streaming desde el host; no se pierde el
+  // tiempo en play-dl/yt-dlp. oEmbed da título, autor e miniatura al instante.
+  if (!sinProxy && !youtubeBlockedNow()) {
+    try {
+      const v = await play.video_info(url).catch(() => null);
+      if (v && v.video_details) {
+        meta = { title: v.video_details.title, duration: v.video_details.durationRaw || "", thumbnail: (v.video_details.thumbnails && v.video_details.thumbnails[0] && v.video_details.thumbnails[0].url) || "" };
+      }
+    } catch (e) { markYoutubeBlocked(e.message); }
+  }
+  if (!meta && !sinProxy && ytdlpDisponible() && !youtubeBlockedNow()) {
+    try { meta = JSON.parse((await ytdlpYT(base => ["--dump-json", ...base, url], 40000)).trim().split("\n").filter(Boolean)[0]); }
     catch (e) { markYoutubeBlocked(e.message); }
+  }
+  // Invidious: metadatos sin tocar YouTube desde la IP del host
+  // (se omite si YouTube está bloqueado: las instancias públicas también fallan
+  //  y se pierden ~28 s en timeouts; oEmbed sirve para el título).
+  if (!meta && !sinProxy && !youtubeBlockedNow()) {
+    const vid = extractYouTubeVideoId(url);
+    if (vid) meta = await invidiousVideoMeta(vid);
   }
   // oEmbed: funciona aunque YouTube bloquee la IP (solo metadatos, sin player)
   if (!meta) {
@@ -11449,8 +11439,18 @@ async function resolveGenericYTDLP(url, sourceName) {
   throw new Error(`No pude obtener info de ${sourceName}`);
 }
 async function searchTrack(query) {
-  // Se intenta YouTube primero (yt-dlp con los clientes nuevos). Si YouTube
-  // está bloqueado o falla, siguen play-dl → Invidious → SoundCloud.
+  // Sin proxy configurado: YouTube no sirve para streaming desde el host.
+  // Se va directo a SoundCloud, que no bloquea por IP.
+  const sinProxy = !String(MUSIC_PROXY || "").trim();
+  if (sinProxy || youtubeBlockedNow()) {
+    if (MUSIC_SC_FALLBACK) {
+      const sc = await soundcloudSearch(query, { direct: true });
+      if (sc) { console.log(`🎵 Búsqueda directa en SoundCloud: ${sc.title}`); return sc; }
+    }
+    throw new Error(sinProxy
+      ? "Sin proxy, la música sale de SoundCloud y no hay ninguna coincidencia clara. Prueba con el título exacto o configura un proxy en Panel → Música."
+      : "YouTube está bloqueado desde este host y no hay ninguna coincidencia clara en SoundCloud");
+  }
   if (ytdlpDisponible()) {
     try {
       const raw = await ytdlpYT(base => ["--dump-json", ...base, `ytsearch1:${query}`], 40000);
@@ -11486,44 +11486,42 @@ async function searchTrack(query) {
 }
 // URL de audio directa para ffmpeg. Si yt-dlp falla, devuelve un stream de play-dl.
 // Argumentos comunes para yt-dlp.
-// Clientes de reproductor por orden de fiabilidad (yt-dlp 2026.08): «visionos»
-// responde sin cookies ni PO token; «web_embedded» funciona con el runtime JS de
-// Node. android_vr quedó roto (403) y tv_embedded ya no existe en yt-dlp.
+// Varios clientes de reproductor en una sola invocación: si YouTube exige "sign in"
+// en la IP del host, android_vr/tv_embedded suelen seguir funcionando.
 const YTDLP_YT_ARGS = [
-  "--extractor-args", "youtube:player_client=visionos,web_embedded",
-  "--js-runtimes", "node",
+  "--extractor-args", "youtube:player_client=android_vr,android,tv_embedded,web_embedded",
   "--no-check-certificates",
   "--geo-bypass",
   "--no-playlist",
 ];
 
 // Clientes usados si la llamada combinada falla: se prueban uno a uno.
-const YT_CLIENT_LIST = ["visionos", "web_embedded", "android"];
+const YT_CLIENT_LIST = ["android_vr", "android", "tv_embedded", "web_embedded"];
 function ytdlpYTArgsFor(client) {
-  return ["--extractor-args", `youtube:player_client=${client}`, "--js-runtimes", "node", "--no-check-certificates", "--geo-bypass", "--no-playlist"];
+  return ["--extractor-args", `youtube:player_client=${client}`, "--no-check-certificates", "--geo-bypass", "--no-playlist"];
 }
 
 // Llamada a yt-dlp pensada para YouTube: 1º con todos los clientes juntos y,
 // si falla, uno a uno (hay hosts donde solo un cliente pasa la verificación).
 // argsBuilder recibe la lista de argumentos base y devuelve los argumentos finales.
-async function ytdlpYT(argsBuilder, timeoutMs = 25000) {
+async function ytdlpYT(argsBuilder, timeoutMs = 40000) {
   let firstErr = null;
   try {
     return await ytdlpRun(argsBuilder(YTDLP_YT_ARGS), timeoutMs);
   } catch (e) {
     firstErr = e;
+    markYoutubeBlocked(e.message);
+    // Bloqueo por IP: probar clientes uno a uno no cambia nada, se ahorra el tiempo.
+    if (YT_BLOCK_MSG.test(String(e.message || ""))) throw e;
   }
   for (const c of YT_CLIENT_LIST) {
     try {
-      return await ytdlpRun(argsBuilder(ytdlpYTArgsFor(c)), Math.min(timeoutMs, 18000));
+      return await ytdlpRun(argsBuilder(ytdlpYTArgsFor(c)), Math.min(timeoutMs, 25000));
     } catch (e) {
       if (!firstErr) firstErr = e;
+      markYoutubeBlocked(e.message);
     }
   }
-  // El aviso de "YouTube bloqueado" solo se marca cuando fallan TODOS los
-  // clientes: antes un fallo puntual bloqueaba YouTube 5 min aunque otro
-  // cliente (p. ej. visionos) sí pudiera resolver el audio.
-  markYoutubeBlocked(firstErr && firstErr.message);
   throw firstErr || new Error("yt-dlp no pudo con YouTube");
 }
 
@@ -11673,13 +11671,13 @@ async function soundcloudFallbackForSong(song, originalUrl) {
   console.log(`🎵 YouTube no respondió → buscando en SoundCloud: ${query}`);
   // Variante 1: consulta completa (título del vídeo de YouTube).
   let sc = await soundcloudSearch(query, { direct: true });
-  // Variante 2: solo las palabras significativas del título (sin artista/canal).
+  // Si falla por DRM o login, se intenta con título simplificado (quita ruidos,
+  // paréntesis, mayúsculas) para buscar una versión que sí sea reproducible.
   if (!sc || !sc.directUrl) {
-    const words = normTrackTitle(query).split(" ").filter(w => w.length > 2 && !SC_NOISE.has(w) && !SC_DIFF.has(w));
-    const short = words.slice(0, 3).join(" ");
-    if (short && short.length >= 4 && short !== normTrackTitle(query)) {
-      console.log(`🎵 SoundCloud reintento (fallback) con "${short}"`);
-      sc = await soundcloudSearch(short, { direct: true });
+    const simplified = normTrackTitle(query).split(" ").filter(w => w.length > 2).slice(0, 3).join(" ");
+    if (simplified && simplified.length >= 4 && simplified !== normTrackTitle(query)) {
+      console.log(`🎵 SoundCloud reintento (fallback simplificado con "${simplified}"`);
+      sc = await soundcloudSearch(simplified, { direct: true });
     }
   }
   if (!sc || !sc.directUrl) return null;
@@ -11879,9 +11877,25 @@ async function resolveAudioSource(song) {
   const shortErr = (e) => String((e && e.message) || e).replace(/\s+/g, " ").slice(0, 70);
 
   if (isYt) {
-    // 1. yt-dlp directo con los clientes nuevos (visionos/web_embedded) y el
-    //    proxy del panel si está configurado. Sin proxy también se intenta:
-    //    estos clientes responden desde IPs de datacenter.
+    // Sin proxy configurado: YouTube bloquea casi siempre la IP de un host de
+    // boting. En vez de gastar ~60-90 s en yt-dlp+play-dl+Invidious muertos,
+    // se va directo a SoundCloud (la única fuente que sí responde sin proxy).
+    // Si el dueño configura un proxy en Panel → Música, se prueba YouTube primero.
+    const sinProxy = !String(MUSIC_PROXY || "").trim();
+    if (sinProxy) {
+      note("YouTube: omitido (sin proxy; se usa SoundCloud)");
+      if (MUSIC_SC_FALLBACK) {
+        const sc0 = await soundcloudFallbackForSong(song, originalUrl);
+        if (sc0) return sc0;
+        note("SoundCloud: sin resultado utilizable");
+      } else {
+        note("SoundCloud: respaldo desactivado en el panel");
+      }
+      const base0 = LAST_MUSIC_ERROR || "no pude obtener el audio";
+      const detalle0 = diag.length ? "\n" + diag.map(d => "• " + d).join("\n") : "";
+      throw new Error(base0 + detalle0 + musicBlockedHint(base0));
+    }
+    // 1. yt-dlp directo con varios clientes de reproductor (y proxy si el dueño lo configuró)
     if (!ytdlpDisponible()) note("yt-dlp: no está instalado en el host");
     else if (youtubeBlockedNow()) note("yt-dlp: omitido (YouTube bloqueó la IP hace poco)");
     else {
@@ -11982,7 +11996,7 @@ async function resolveAudioSource(song) {
 // Consejo cuando el fallo es el bloqueo de YouTube por IP del host.
 function musicBlockedHint(msg) {
   return /sign in|not a bot|confirm you|blocked|http 403|http 429|too many requests/i.test(String(msg || ""))
-    ? "\n⚠️ YouTube está bloqueando la IP del host: añade un proxy en Panel → Música → «Proxy para yt-dlp» (o deja activo el respaldo en SoundCloud)."
+    ? "\n⚠️ YouTube está bloqueando la IP del host: añade un proxy en Panel → Música → «Proxy para yt-dlp»."
     : "";
 }
 function musicErrorToChannel(guildId, text) {
@@ -12017,13 +12031,7 @@ function playGuildMusic(guildId) {
       const { spawn } = require("child_process");
       const ffmpegPath2 = require("ffmpeg-static");
 
-      // Tope de tiempo para la resolución de audio: si una fuente se queda
-      // colgada, la cola no se queda muda y el canal recibe el aviso.
-      let srcTimeout = null;
-      const src = await Promise.race([
-        resolveAudioSource(song),
-        new Promise((_, rej) => { srcTimeout = setTimeout(() => rej(new Error("la búsqueda de audio tardó más de 120 s: ¿el host no tiene salida a YouTube/SoundCloud?")), 120000); }),
-      ]).finally(() => { try { clearTimeout(srcTimeout); } catch {} });
+      const src = await resolveAudioSource(song);
 
       console.log(`🎵 Fuente obtenida (${src.kind}), spawning ffmpeg...`);
 
@@ -13897,7 +13905,7 @@ if (process.env.DASHBOARD_PORT) {
     const { startDashboard } = require("./dashboard/server.js");
     startDashboard({
       client, db, getGuildConfig, saveGuilds, getGuildStaff, saveStaff, buildVerifyPanel, buildTestMessage, buildTicketPanel, registrarComandos,
-      cmdRegStatus, cmdRegSaveSettings, arrancarRegistroComandos, botSalud, probarRegistroComandos, probarMusica,
+      cmdRegStatus, cmdRegSaveSettings, arrancarRegistroComandos, botSalud, probarRegistroComandos,
       stores: { events, teams, openTickets, clips },
       setLockdown: async (guildId, on) => {
         const guild = client.guilds.cache.get(guildId);
