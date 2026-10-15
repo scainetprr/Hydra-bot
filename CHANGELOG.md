@@ -2,6 +2,15 @@
 
 Todas las novedades relevantes del bot. Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
+## [10/10/2026] — 03:30
+
+### Cambiado (Tickets)
+- **Apertura estilo "Ticket Created"**: título/descripción/footer nuevos por defecto, respuestas del formulario como campos con bloque de código, thumbnail del servidor, topic del canal (`Category | User | Priority`) y botones `🔒 Close Ticket` + ` Claimed by …` al reclamar.
+- **Cierre con motivo**: el botón Cerrar y `/ticket cerrar` abren un formulario de motivo (por defecto "Solved").
+- **Transcripción estilo "Cierre del Ticket"**: embed con campos Cierre/Información/Canal del Ticket, footer `{Servidor} | Ticket System`, banner y archivo `{canal}-transcript.txt`.
+
+---
+
 ## [10/10/2026] — 03:05
 
 ### Corregido (Tickets)
