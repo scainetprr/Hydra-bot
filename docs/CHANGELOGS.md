@@ -4,6 +4,26 @@ Registro fechado de cada cambio aplicado al bot y al panel. Lo más reciente arr
 
 ---
 
+## 10/10/2026 · 03:30
+
+**Tickets — nuevo estilo de apertura y transcripciones (diseño de referencia)**
+- **Apertura (estilo "Ticket Created")**:
+  - Título por defecto `Ticket Created`, descripción `Hey @usuario, a staff member will be with you shortly.` (sigue siendo configurable con `ticketTitle`/`ticketDesc`/`ticketFooter`).
+  - **Respuestas del formulario** ahora se muestran: una campo por pregunta con la respuesta en bloque de código.
+  - Thumbnail = icono del servidor; footer por defecto `Categoría • Rol de staff`.
+  - Botones: fila 1 `🔒 Close Ticket` + `🙋 Reclamar` (tras reclamar → ` Claimed by …` deshabilitado, y actualiza el mensaje); fila 2 `🗑️ Borrar` + agregar staff/usuario.
+  - **Topic del canal**: `Category: X | User: @user | Priority: Low` (la prioridad la toma de la categoría si existe).
+  - Las respuestas y la prioridad se guardan en el ticket (para la transcripción).
+- **Cierre con motivo**:
+  - El botón `🔒 Close Ticket` y `/ticket cerrar` ahora abren un **formulario de motivo** (por defecto "Solved").
+- **Transcripción (estilo "Cierre del Ticket")**:
+  - Embed en el canal de transcripciones: campos **Cierre** (quién cerró + motivo), **Información** (creador, mensajes, prioridad, claimed by), **Canal del Ticket**; footer `{Servidor} | Ticket System`; banner si está configurado.
+  - Archivo adjunto renombrado: `{canal}-transcript.txt`.
+- Mensaje de prueba del panel actualizado con los mismos valores por defecto.
+- `node --check index.js`: OK.
+
+---
+
 ## 10/10/2026 · 03:05
 
 **Tickets — no dejaba volver a seleccionar la misma categoría**
